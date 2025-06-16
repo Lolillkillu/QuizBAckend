@@ -1,0 +1,79 @@
+﻿using QuizzWebApp.Models;
+using System.Collections.Concurrent;
+
+namespace QuizzWebApp.Services
+{
+    public class GameManager
+    {
+        private static readonly Lazy<GameManager> _instance = new(() => new GameManager());
+        public static GameManager Instance => _instance.Value;
+
+        private readonly ConcurrentDictionary<string, GameSession> _games = new();
+        private readonly TimeSpan _gameTimeout = TimeSpan.FromMinutes(30);
+
+        private GameManager()
+        {
+            //cyszczenie starych gier co 5 minut
+            var timer = new Timer(_ => CleanupOldGames(), null, 0, 300000);
+        }
+
+        public GameSession CreateGame(int quizId)
+        {
+            var game = new GameSession();
+            game.QuizId = quizId;
+
+            while (true)
+            {
+                if (_games.TryAdd(game.GameId, game))
+                    return game;
+            }
+        }
+
+        public bool JoinGame(string gameId, string connectionId, string playerName, bool isHost)
+        {
+            if (!_games.TryGetValue(gameId, out var game) ||
+                game.Status != GameStatus.WaitingForPlayers)
+                return false;
+
+            if (isHost)
+            {
+                if (!string.IsNullOrEmpty(game.HostId))
+                    return false;
+            }
+            else
+            {
+                if (game.Players.Count >= 2)
+                    return false;
+            }
+
+            lock (game)
+            {
+                if (game.Status != GameStatus.WaitingForPlayers)
+                    return false;
+
+                game.Players.Add(new Player
+                {
+                    ConnectionId = connectionId,
+                    PlayerId = Guid.NewGuid().ToString(),
+                    Name = playerName,
+                    IsHost = isHost,
+                    IsReady = false
+                });
+            }
+            return true;
+        }
+
+
+        public GameSession GetGame(string gameId) =>
+            _games.TryGetValue(gameId, out var game) ? game : null;
+
+        private void CleanupOldGames()
+        {
+            var cutoff = DateTime.UtcNow - _gameTimeout;
+            var oldGames = _games.Where(g => g.Value.CreatedAt < cutoff).ToList();
+
+            foreach (var game in oldGames)
+                _games.TryRemove(game.Key, out _);
+        }
+    }
+}
