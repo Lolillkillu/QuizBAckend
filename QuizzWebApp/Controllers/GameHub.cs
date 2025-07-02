@@ -63,7 +63,19 @@ namespace QuizzWebApp.Controllers
             }
         }
 
-        public async Task SubmitAnswer(string gameId, int questionId, int answerId)
+        public async Task SetTimeSettings(string gameId, bool isTimeLimitEnabled, int timeLimitPerQuestion)
+        {
+            var game = GameManager.Instance.GetGame(gameId);
+            if (game == null) return;
+
+            var player = game.Players.FirstOrDefault(p => p.ConnectionId == Context.ConnectionId && p.IsHost);
+            if (player == null) return;
+
+            game.IsTimeLimitEnabled = isTimeLimitEnabled;
+            game.TimeLimitPerQuestion = timeLimitPerQuestion;
+        }
+
+        public async Task SubmitAnswer(string gameId, int questionId, int? answerId)
         {
             var game = GameManager.Instance.GetGame(gameId);
             if (game?.Status != GameStatus.InProgress) return;
@@ -78,11 +90,17 @@ namespace QuizzWebApp.Controllers
             }
 
             var currentQuestion = game.Questions[player.CurrentQuestionIndex];
-            var selectedAnswer = currentQuestion.Answers.FirstOrDefault(a => a.AnswerId == answerId);
+            bool isCorrect = false;
+            string answerText = "Brak odpowiedzi";
 
-            if (selectedAnswer == null) return;
+            if (answerId.HasValue)
+            {
+                var selectedAnswer = currentQuestion.Answers.FirstOrDefault(a => a.AnswerId == answerId.Value);
+                if (selectedAnswer == null) return;
 
-            bool isCorrect = selectedAnswer.IsCorrect;
+                isCorrect = selectedAnswer.IsCorrect;
+                answerText = selectedAnswer.AnswerText;
+            }
 
             lock (player)
             {
@@ -93,7 +111,7 @@ namespace QuizzWebApp.Controllers
                     QuestionId = questionId,
                     QuestionText = currentQuestion.QuestionText,
                     AnswerId = answerId,
-                    AnswerText = selectedAnswer.AnswerText,
+                    AnswerText = answerText,
                     IsCorrect = isCorrect
                 });
 
@@ -119,7 +137,9 @@ namespace QuizzWebApp.Controllers
                 {
                     nextQuestion.QuestionId,
                     nextQuestion.QuestionText,
-                    Answers = nextQuestion.Answers.Select(a => new { a.AnswerId, a.AnswerText })
+                    Answers = nextQuestion.Answers.Select(a => new { a.AnswerId, a.AnswerText }),
+                    IsTimeLimitEnabled = game.IsTimeLimitEnabled,
+                    TimeLimitPerQuestion = game.TimeLimitPerQuestion
                 });
             }
         }
@@ -136,34 +156,19 @@ namespace QuizzWebApp.Controllers
             {
                 player.CurrentQuestionIndex = 0;
                 player.HasCompleted = false;
+                player.Score = 0;
+                player.Answers.Clear();
 
                 var question = game.Questions[0];
                 await Clients.Client(player.ConnectionId).SendAsync("NextQuestion", new
                 {
                     question.QuestionId,
                     question.QuestionText,
-                    Answers = question.Answers.Select(a => new { a.AnswerId, a.AnswerText })
+                    Answers = question.Answers.Select(a => new { a.AnswerId, a.AnswerText }),
+                    IsTimeLimitEnabled = game.IsTimeLimitEnabled,
+                    TimeLimitPerQuestion = game.TimeLimitPerQuestion
                 });
             }
-        }
-
-        private async Task SendNextQuestion(string gameId)
-        {
-            var game = GameManager.Instance.GetGame(gameId);
-            if (game == null || game.CurrentQuestionIndex >= game.Questions.Count)
-            {
-                await EndGame(gameId);
-                return;
-            }
-
-            var question = game.Questions[game.CurrentQuestionIndex];
-            await Clients.Group(gameId).SendAsync("NextQuestion",
-                new
-                {
-                    question.QuestionId,
-                    question.QuestionText,
-                    Answers = question.Answers.Select(a => new { a.AnswerId, a.AnswerText })
-                });
         }
 
         private async Task EndGame(string gameId)

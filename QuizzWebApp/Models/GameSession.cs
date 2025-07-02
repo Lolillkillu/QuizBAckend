@@ -14,6 +14,8 @@
         public bool HostReady { get; set; }
         public int GuestsReady { get; set; }
         public List<string> CompletedPlayers { get; } = new List<string>();
+        public bool IsTimeLimitEnabled { get; set; }
+        public int TimeLimitPerQuestion { get; set; } = 30;
     }
 
     public enum GameStatus
