@@ -249,6 +249,104 @@ namespace QuizzWebApp.Controllers
             return Ok(result);
         }
 
+        [HttpGet("GetRandomMultiQuestions/{quizzId}")]
+        public async Task<ActionResult<List<QuestionWithAnswers>>> GetRandomMultiQuestions( int quizzId, [FromQuery] int numberOfQuestions = 10, [FromQuery] int answersPerQuestion = 4)
+        {
+            if (numberOfQuestions <= 0 || answersPerQuestion <= 0)
+            {
+                return BadRequest("Liczba pytań i odpowiedzi powinna być większa od zera");
+            }
+
+            if (!await _context.Quizzes.AnyAsync(q => q.QuizzId == quizzId))
+            {
+                return NotFound($"Quiz {quizzId} nie istnieje");
+            }
+
+            var validQuestionIds = await _context.Questions
+                .Where(q => q.QuizzId == quizzId)
+                .Select(q => new
+                {
+                    q.QuestionId,
+                    CorrectCount = q.Answers.Count(a => a.IsCorrect),
+                    IncorrectCount = q.Answers.Count(a => !a.IsCorrect),
+                    TotalAnswers = q.Answers.Count
+                })
+                .Where(x =>
+                    x.CorrectCount >= 1 &&
+                    x.TotalAnswers >= answersPerQuestion &&
+                    x.IncorrectCount >= (answersPerQuestion <= x.CorrectCount ? 0 : answersPerQuestion - x.CorrectCount))
+                .Select(x => x.QuestionId)
+                .ToListAsync();
+
+            if (validQuestionIds.Count < numberOfQuestions)
+            {
+                return NotFound(
+                    $"Jest wymagane {numberOfQuestions} pytań. " + $"Dostępne: {validQuestionIds.Count}");
+            }
+
+            var selectedQuestionIds = validQuestionIds
+                .OrderBy(x => Guid.NewGuid())
+                .Take(numberOfQuestions)
+                .ToList();
+
+            var selectedQuestions = await _context.Questions
+                .Where(q => selectedQuestionIds.Contains(q.QuestionId))
+                .Include(q => q.Answers)
+                .AsNoTracking()
+                .ToListAsync();
+
+            var random = new Random();
+            var result = new List<QuestionWithAnswers>();
+
+            foreach (var question in selectedQuestions)
+            {
+                var correctAnswers = question.Answers.Where(a => a.IsCorrect).ToList();
+                var incorrectAnswers = question.Answers.Where(a => !a.IsCorrect).ToList();
+
+                int totalCorrect = correctAnswers.Count;
+                int totalIncorrect = incorrectAnswers.Count;
+
+                int maxPossibleCorrect = Math.Min(answersPerQuestion, totalCorrect);
+                int minRequiredCorrect = Math.Max(1, answersPerQuestion - totalIncorrect);
+
+                if (minRequiredCorrect > maxPossibleCorrect)
+                {
+                    minRequiredCorrect = maxPossibleCorrect;
+                }
+
+                int correctToSelect = random.Next(
+                    minRequiredCorrect,
+                    maxPossibleCorrect + 1);
+
+                var selectedCorrect = correctAnswers
+                    .OrderBy(a => Guid.NewGuid())
+                    .Take(correctToSelect)
+                    .ToList();
+
+                var selectedIncorrect = incorrectAnswers
+                    .OrderBy(a => Guid.NewGuid())
+                    .Take(answersPerQuestion - correctToSelect)
+                    .ToList();
+
+                var allAnswers = selectedCorrect.Concat(selectedIncorrect).ToList();
+                allAnswers = allAnswers.OrderBy(a => Guid.NewGuid()).ToList();
+
+                result.Add(new QuestionWithAnswers
+                {
+                    QuestionId = question.QuestionId,
+                    QuestionText = question.Question,
+                    Answers = allAnswers.Select(a => new AnswerDto
+                    {
+                        AnswerId = a.AnswerId,
+                        AnswerText = a.Answer,
+                        IsCorrect = a.IsCorrect
+                    }).ToList()
+                });
+            }
+
+            return Ok(result);
+        }
+
         [HttpPost("SubmitAnswer")]
         public ActionResult<AnswerResult> SubmitAnswer([FromBody] UserAnswer userAnswer)
         {
