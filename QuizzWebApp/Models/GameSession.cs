@@ -10,12 +10,13 @@
         public int CurrentQuestionIndex { get; set; } = -1;
         public DateTime CreatedAt { get; } = DateTime.UtcNow;
         public bool HostJoined { get; set; }
-        public string HostId { get; set; }
+        public string HostId => Players.FirstOrDefault(p => p.IsHost)?.PlayerId;
         public bool HostReady { get; set; }
         public int GuestsReady { get; set; }
         public List<string> CompletedPlayers { get; } = new List<string>();
         public bool IsTimeLimitEnabled { get; set; }
         public int TimeLimitPerQuestion { get; set; } = 30;
+        public GameMode GameMode { get; set; } = GameMode.SingleChoice;
     }
 
     public enum GameStatus
@@ -23,5 +24,11 @@
         WaitingForPlayers,
         InProgress,
         Completed
+    }
+
+    public enum GameMode
+    {
+        SingleChoice,
+        MultipleChoice
     }
 }

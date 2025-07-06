@@ -75,6 +75,17 @@ namespace QuizzWebApp.Controllers
             game.TimeLimitPerQuestion = timeLimitPerQuestion;
         }
 
+        public async Task SetGameMode(string gameId, GameMode mode)
+        {
+            var game = GameManager.Instance.GetGame(gameId);
+            if (game == null) return;
+
+            var player = game.Players.FirstOrDefault(p => p.ConnectionId == Context.ConnectionId && p.IsHost);
+            if (player == null) return;
+
+            game.GameMode = mode;
+        }
+
         public async Task SubmitAnswer(string gameId, int questionId, int? answerId)
         {
             var game = GameManager.Instance.GetGame(gameId);
@@ -92,6 +103,8 @@ namespace QuizzWebApp.Controllers
             var currentQuestion = game.Questions[player.CurrentQuestionIndex];
             bool isCorrect = false;
             string answerText = "Brak odpowiedzi";
+            List<string> answerTexts = new List<string>();
+            List<int> answerIds = new List<int>();
 
             if (answerId.HasValue)
             {
@@ -100,6 +113,8 @@ namespace QuizzWebApp.Controllers
 
                 isCorrect = selectedAnswer.IsCorrect;
                 answerText = selectedAnswer.AnswerText;
+                answerTexts.Add(answerText);
+                answerIds.Add(answerId.Value);
             }
 
             lock (player)
@@ -110,8 +125,8 @@ namespace QuizzWebApp.Controllers
                 {
                     QuestionId = questionId,
                     QuestionText = currentQuestion.QuestionText,
-                    AnswerId = answerId,
-                    AnswerText = answerText,
+                    AnswerIds = answerIds,
+                    AnswerTexts = answerTexts,
                     IsCorrect = isCorrect
                 });
 
@@ -139,7 +154,86 @@ namespace QuizzWebApp.Controllers
                     nextQuestion.QuestionText,
                     Answers = nextQuestion.Answers.Select(a => new { a.AnswerId, a.AnswerText }),
                     IsTimeLimitEnabled = game.IsTimeLimitEnabled,
-                    TimeLimitPerQuestion = game.TimeLimitPerQuestion
+                    TimeLimitPerQuestion = game.TimeLimitPerQuestion,
+                    IsMultiChoice = (game.GameMode == GameMode.MultipleChoice)
+                });
+            }
+        }
+
+        public async Task SubmitMultiAnswer(string gameId, int questionId, List<int> answerIds)
+        {
+            var game = GameManager.Instance.GetGame(gameId);
+            if (game?.Status != GameStatus.InProgress) return;
+
+            var player = game.Players.FirstOrDefault(p => p.ConnectionId == Context.ConnectionId);
+            if (player == null) return;
+
+            if (player.CurrentQuestionIndex >= game.Questions.Count ||
+                game.Questions[player.CurrentQuestionIndex].QuestionId != questionId)
+            {
+                return;
+            }
+
+            var currentQuestion = game.Questions[player.CurrentQuestionIndex];
+            bool isCorrect = false;
+            List<string> answerTexts = new List<string>();
+
+            if (answerIds != null && answerIds.Any())
+            {
+                var selectedAnswers = currentQuestion.Answers
+                    .Where(a => answerIds.Contains(a.AnswerId))
+                    .ToList();
+
+                answerTexts = selectedAnswers.Select(a => a.AnswerText).ToList();
+
+                var correctAnswerIds = currentQuestion.Answers
+                    .Where(a => a.IsCorrect)
+                    .Select(a => a.AnswerId)
+                    .ToList();
+
+                isCorrect = correctAnswerIds.Count == answerIds.Count &&
+                            correctAnswerIds.All(id => answerIds.Contains(id));
+            }
+
+            lock (player)
+            {
+                if (isCorrect) player.Score++;
+
+                player.Answers.Add(new PlayerAnswer
+                {
+                    QuestionId = questionId,
+                    QuestionText = currentQuestion.QuestionText,
+                    AnswerIds = answerIds ?? new List<int>(),
+                    AnswerTexts = answerTexts,
+                    IsCorrect = isCorrect
+                });
+
+                player.CurrentQuestionIndex++;
+            }
+
+            await Clients.Caller.SendAsync("AnswerProcessed", player.PlayerId, isCorrect);
+
+            if (player.CurrentQuestionIndex >= game.Questions.Count)
+            {
+                player.HasCompleted = true;
+                await Clients.Group(gameId).SendAsync("PlayerCompleted", player.PlayerId);
+
+                if (game.Players.All(p => p.HasCompleted))
+                {
+                    await EndGame(gameId);
+                }
+            }
+            else
+            {
+                var nextQuestion = game.Questions[player.CurrentQuestionIndex];
+                await Clients.Caller.SendAsync("NextQuestion", new
+                {
+                    nextQuestion.QuestionId,
+                    nextQuestion.QuestionText,
+                    Answers = nextQuestion.Answers.Select(a => new { a.AnswerId, a.AnswerText }),
+                    IsTimeLimitEnabled = game.IsTimeLimitEnabled,
+                    TimeLimitPerQuestion = game.TimeLimitPerQuestion,
+                    IsMultiChoice = (game.GameMode == GameMode.MultipleChoice)
                 });
             }
         }
@@ -150,7 +244,15 @@ namespace QuizzWebApp.Controllers
             if (game == null) return;
 
             game.Status = GameStatus.InProgress;
-            game.Questions = await _context.GetRandomQuestions(game.QuizId);
+
+            if (game.GameMode == GameMode.SingleChoice)
+            {
+                game.Questions = await _context.GetRandomQuestions(game.QuizId);
+            }
+            else
+            {
+                game.Questions = await _context.GetRandomMultiQuestions(game.QuizId, 10, 4);
+            }
 
             foreach (var player in game.Players)
             {
@@ -166,7 +268,8 @@ namespace QuizzWebApp.Controllers
                     question.QuestionText,
                     Answers = question.Answers.Select(a => new { a.AnswerId, a.AnswerText }),
                     IsTimeLimitEnabled = game.IsTimeLimitEnabled,
-                    TimeLimitPerQuestion = game.TimeLimitPerQuestion
+                    TimeLimitPerQuestion = game.TimeLimitPerQuestion,
+                    IsMultiChoice = (game.GameMode == GameMode.MultipleChoice)
                 });
             }
         }
@@ -189,8 +292,8 @@ namespace QuizzWebApp.Controllers
                     {
                         questionId = a.QuestionId,
                         questionText = a.QuestionText,
-                        answerId = a.AnswerId,
-                        answerText = a.AnswerText,
+                        answerIds = a.AnswerIds,
+                        answerTexts = a.AnswerTexts,
                         isCorrect = a.IsCorrect
                     }).ToList()
                 }).ToList());
@@ -207,8 +310,7 @@ namespace QuizzWebApp.Controllers
 
         private async Task SaveGameResults(GameSession game)
         {
-            //TODO zapis do bazy
-            //przyszłe statystyki???
+            // TODO
         }
     }
 }
