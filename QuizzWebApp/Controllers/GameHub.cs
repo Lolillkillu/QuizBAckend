@@ -84,6 +84,8 @@ namespace QuizzWebApp.Controllers
             if (player == null) return;
 
             game.GameMode = mode;
+
+            await Clients.Group(gameId).SendAsync("GameModeUpdated", mode);
         }
 
         public async Task SubmitAnswer(string gameId, int questionId, int? answerId)
