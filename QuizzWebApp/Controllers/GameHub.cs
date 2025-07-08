@@ -284,21 +284,44 @@ namespace QuizzWebApp.Controllers
             game.Status = GameStatus.Completed;
             await SaveGameResults(game);
 
+            var correctAnswersByQuestion = game.Questions.ToDictionary(
+                q => q.QuestionId,
+                q => q.Answers.Where(a => a.IsCorrect).ToList()
+            );
+
             await Clients.Group(gameId).SendAsync("GameCompleted",
-                game.Players.Select(p => new
+                new
                 {
-                    playerId = p.PlayerId,
-                    playerName = p.Name,
-                    score = p.Score,
-                    answers = p.Answers.Select(a => new
+                    players = game.Players.Select(p => new
                     {
-                        questionId = a.QuestionId,
-                        questionText = a.QuestionText,
-                        answerIds = a.AnswerIds,
-                        answerTexts = a.AnswerTexts,
-                        isCorrect = a.IsCorrect
+                        playerId = p.PlayerId,
+                        playerName = p.Name,
+                        score = p.Score,
+                        answers = p.Answers.Select(a => new
+                        {
+                            questionId = a.QuestionId,
+                            questionText = a.QuestionText,
+                            answerIds = a.AnswerIds,
+                            answerTexts = a.AnswerTexts,
+                            isCorrect = a.IsCorrect,
+                            correctAnswerIds = correctAnswersByQuestion[a.QuestionId]
+                                .Select(ca => ca.AnswerId).ToList(),
+                            correctAnswerTexts = correctAnswersByQuestion[a.QuestionId]
+                                .Select(ca => ca.AnswerText).ToList()
+                        }).ToList()
+                    }).ToList(),
+                    questions = game.Questions.Select(q => new
+                    {
+                        questionId = q.QuestionId,
+                        questionText = q.QuestionText,
+                        correctAnswers = q.Answers
+                            .Where(a => a.IsCorrect)
+                            .Select(a => new {
+                                answerId = a.AnswerId,
+                                answerText = a.AnswerText
+                            }).ToList()
                     }).ToList()
-                }).ToList());
+                });
         }
 
         public async Task SetQuizIdForGame(string gameId, int quizId)
