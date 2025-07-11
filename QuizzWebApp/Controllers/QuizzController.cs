@@ -380,5 +380,32 @@ namespace QuizzWebApp.Controllers
                 CorrectAnswerText = correctAnswer.Answer
             });
         }
+
+        [HttpGet("SearchQuestions")]
+        public async Task<ActionResult<IEnumerable<QuestionSearchResult>>> SearchQuestions([FromQuery] string searchTerm)
+        {
+            if (string.IsNullOrWhiteSpace(searchTerm))
+            {
+                return Ok(new List<QuestionSearchResult>());
+            }
+
+            var normalizedSearchTerm = searchTerm.Trim().ToLower();
+
+            var results = await _context.Questions
+                .Include(q => q.Quizz)
+                .Where(q => q.Question != null && q.Question.ToLower().Contains(normalizedSearchTerm))
+                .OrderBy(q => q.Quizz.Title)
+                .ThenBy(q => q.Question)
+                .Select(q => new QuestionSearchResult
+                {
+                    QuestionId = q.QuestionId,
+                    QuestionText = q.Question,
+                    QuizzId = q.QuizzId,
+                    QuizzTitle = q.Quizz != null ? q.Quizz.Title : "Brak tytułu"
+                })
+                .ToListAsync();
+
+            return Ok(results);
+        }
     }
 }
