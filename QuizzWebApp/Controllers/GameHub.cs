@@ -1,11 +1,7 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.SignalR;
+﻿using Microsoft.AspNetCore.SignalR;
 using QuizzWebApp.Data;
 using QuizzWebApp.Models;
 using QuizzWebApp.Services;
-using System.Collections.Concurrent;
-using System.Text.RegularExpressions;
 
 namespace QuizzWebApp.Controllers
 {
@@ -253,7 +249,7 @@ namespace QuizzWebApp.Controllers
             }
             else
             {
-                game.Questions = await _context.GetRandomMultiQuestions(game.QuizId, game.NumberOfQuestions, 4); ;
+                game.Questions = await _context.GetRandomMultiQuestions(game.QuizId, game.NumberOfQuestions, game.AnswersPerQuestion);
             }
 
             foreach (var player in game.Players)
@@ -342,6 +338,19 @@ namespace QuizzWebApp.Controllers
             if (player == null) return;
 
             game.NumberOfQuestions = Math.Clamp(numberOfQuestions, 5, 20);
+        }
+
+        public async Task SetAnswersPerQuestion(string gameId, int answersPerQuestion)
+        {
+            var game = GameManager.Instance.GetGame(gameId);
+            if (game == null) return;
+
+            var player = game.Players.FirstOrDefault(p =>
+                p.ConnectionId == Context.ConnectionId && p.IsHost);
+
+            if (player == null) return;
+
+            game.AnswersPerQuestion = Math.Clamp(answersPerQuestion, 2, 6);
         }
 
         private async Task SaveGameResults(GameSession game)
