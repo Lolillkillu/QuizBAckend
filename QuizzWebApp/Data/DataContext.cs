@@ -51,9 +51,11 @@ namespace QuizzWebApp.Data
         }
 
 
-        public async Task<List<QuestionWithAnswers>> GetRandomQuestions(int quizzId)
+        public async Task<List<QuestionWithAnswers>> GetRandomQuestions(int quizzId, int numberOfQuestions = 10)
         {
-            //Sprawdzenie czy quiz istnieje
+            if (numberOfQuestions <= 0)
+                throw new ArgumentException("Liczba pytań powinna być większa od zera");
+
             if (!await Quizzes.AnyAsync(q => q.QuizzId == quizzId))
             {
                 throw new InvalidOperationException($"Quiz o ID {quizzId} nie istnieje");
@@ -76,15 +78,15 @@ namespace QuizzWebApp.Data
                            q.Answers.Count(a => !a.IsCorrect) >= 3)
                 .ToList();
 
-            if (validQuestions.Count < 10)
+            if (validQuestions.Count < numberOfQuestions)
             {
                 throw new InvalidOperationException(
-                    $"Wymagane 10 pytań. Dostępne: {validQuestions.Count}");
+                    $"Wymagane {numberOfQuestions} pytań. Dostępne: {validQuestions.Count}");
             }
 
             var selectedQuestions = validQuestions
                 .OrderBy(_ => Guid.NewGuid())
-                .Take(10)
+                .Take(numberOfQuestions)
                 .ToList();
 
             var random = new Random();

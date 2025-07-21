@@ -249,7 +249,7 @@ namespace QuizzWebApp.Controllers
 
             if (game.GameMode == GameMode.SingleChoice)
             {
-                game.Questions = await _context.GetRandomQuestions(game.QuizId);
+                game.Questions = await _context.GetRandomQuestions(game.QuizId, 10);
             }
             else
             {
