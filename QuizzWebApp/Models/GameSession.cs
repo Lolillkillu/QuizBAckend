@@ -17,6 +17,7 @@
         public bool IsTimeLimitEnabled { get; set; }
         public int TimeLimitPerQuestion { get; set; } = 30;
         public GameMode GameMode { get; set; } = GameMode.SingleChoice;
+        public int NumberOfQuestions { get; set; } = 10;
     }
 
     public enum GameStatus

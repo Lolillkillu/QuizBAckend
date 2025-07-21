@@ -249,11 +249,11 @@ namespace QuizzWebApp.Controllers
 
             if (game.GameMode == GameMode.SingleChoice)
             {
-                game.Questions = await _context.GetRandomQuestions(game.QuizId, 10);
+                game.Questions = await _context.GetRandomQuestions(game.QuizId, game.NumberOfQuestions);
             }
             else
             {
-                game.Questions = await _context.GetRandomMultiQuestions(game.QuizId, 10, 4);
+                game.Questions = await _context.GetRandomMultiQuestions(game.QuizId, game.NumberOfQuestions, 4); ;
             }
 
             foreach (var player in game.Players)
@@ -331,6 +331,17 @@ namespace QuizzWebApp.Controllers
             {
                 game.QuizId = quizId;
             }
+        }
+
+        public async Task SetNumberOfQuestions(string gameId, int numberOfQuestions)
+        {
+            var game = GameManager.Instance.GetGame(gameId);
+            if (game == null) return;
+
+            var player = game.Players.FirstOrDefault(p => p.ConnectionId == Context.ConnectionId && p.IsHost);
+            if (player == null) return;
+
+            game.NumberOfQuestions = Math.Clamp(numberOfQuestions, 5, 20);
         }
 
         private async Task SaveGameResults(GameSession game)
