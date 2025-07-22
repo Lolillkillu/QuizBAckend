@@ -267,7 +267,8 @@ namespace QuizzWebApp.Controllers
                     Answers = question.Answers.Select(a => new { a.AnswerId, a.AnswerText }),
                     IsTimeLimitEnabled = game.IsTimeLimitEnabled,
                     TimeLimitPerQuestion = game.TimeLimitPerQuestion,
-                    IsMultiChoice = (game.GameMode == GameMode.MultipleChoice)
+                    IsMultiChoice = (game.GameMode == GameMode.MultipleChoice),
+                    TotalQuestions = game.NumberOfQuestions
                 });
             }
         }
