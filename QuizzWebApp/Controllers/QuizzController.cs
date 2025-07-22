@@ -179,11 +179,11 @@ namespace QuizzWebApp.Controllers
         }
 
         [HttpGet("GetRandomQuestions/{quizzId}")]
-        public ActionResult<List<QuestionWithAnswers>> GetRandomQuestions(int quizzId)
+        public ActionResult<List<QuestionWithAnswers>> GetRandomQuestions(int quizzId, [FromQuery] int numberOfQuestions = 10)
         {
             if (!_context.Quizzes.Any(q => q.QuizzId == quizzId))
             {
-                return NotFound($"Quiz o ID {quizzId} nie istnieje w systemie");
+                return NotFound($"Quiz {quizzId} nie istnieje");
             }
 
             var questions = _context.Questions
@@ -194,7 +194,7 @@ namespace QuizzWebApp.Controllers
 
             if (!questions.Any())
             {
-                return NotFound($"Quiz o ID {quizzId} nie zawiera żadnych pytań");
+                return NotFound($"Quiz {quizzId} nie zawiera żadnych pytań");
             }
 
             var validQuestions = questions.Where(q =>
@@ -203,14 +203,14 @@ namespace QuizzWebApp.Controllers
                 q.Answers.Count(a => !a.IsCorrect) >= 3)
                 .ToList();
 
-            if (validQuestions.Count < 10)
+            if (validQuestions.Count < numberOfQuestions)
             {
-                return NotFound($"Wymagane 10 pytań. Dostępnych jest tylko {validQuestions.Count} poprawnych pytań.");
+                return NotFound($"Wymagane {numberOfQuestions} pytań. Dostępnych jest tylko {validQuestions.Count} poprawnych pytań.");
             }
 
             var selectedQuestions = validQuestions
                 .OrderBy(q => Guid.NewGuid())
-                .Take(10)
+                .Take(numberOfQuestions)
                 .ToList();
 
             var random = new Random();
