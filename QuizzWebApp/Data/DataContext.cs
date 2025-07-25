@@ -17,6 +17,8 @@ namespace QuizzWebApp.Data
         public DbSet<AnswerModel> Answers { get; set; }
         public DbSet<UserModel> Users { get; set; }
         public DbSet<ScienceModel> Sciences { get; set; }
+        public DbSet<ScienceStatistics> ScienceStatistics { get; set; }
+        public DbSet<QuizStatistics> QuizStatistics { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -47,6 +49,34 @@ namespace QuizzWebApp.Data
 
             modelBuilder.Entity<UserModel>()
                 .HasIndex(u => u.Email)
+                .IsUnique();
+
+            modelBuilder.Entity<QuizStatistics>()
+                .HasOne(qr => qr.User)
+                .WithMany(u => u.QuizStatistics)
+                .HasForeignKey(qr => qr.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<QuizStatistics>()
+                .HasOne(qr => qr.Quiz)
+                .WithMany()
+                .HasForeignKey(qr => qr.QuizzId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<ScienceStatistics>()
+                .HasOne(uss => uss.User)
+                .WithMany(u => u.ScienceStatistics)
+                .HasForeignKey(uss => uss.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ScienceStatistics>()
+                .HasOne(uss => uss.Science)
+                .WithMany()
+                .HasForeignKey(uss => uss.ScienceId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<ScienceStatistics>()
+                .HasIndex(uss => new { uss.UserId, uss.ScienceId })
                 .IsUnique();
         }
 

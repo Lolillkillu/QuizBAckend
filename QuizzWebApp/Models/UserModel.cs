@@ -10,6 +10,8 @@ namespace QuizzWebApp.Models
         public required string Password { get; set; }
         public required string Email { get; set; }
         public required bool IsAdmin { get; set; } = false;
+        public virtual ICollection<QuizStatistics>? QuizStatistics { get; set; }
+        public virtual ICollection<ScienceStatistics>? ScienceStatistics { get; set; }
 
     }
 }

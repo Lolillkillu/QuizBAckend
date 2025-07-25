@@ -14,5 +14,6 @@ namespace QuizzWebApp.Models
         public required string Author { get; set; }
         public ICollection<QuestionModel>? Questions { get; set; }
         public ScienceModel? Science { get; internal set; }
+        public virtual ICollection<QuizStatistics>? QuizStatistics { get; set; }
     }
 }
