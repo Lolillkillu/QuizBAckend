@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
 using QuizzWebApp.Data;
 using QuizzWebApp.Models;
 using QuizzWebApp.Services;
@@ -356,7 +357,83 @@ namespace QuizzWebApp.Controllers
 
         private async Task SaveGameResults(GameSession game)
         {
-            // TODO
+            if (game == null || !game.Players.Any()) return;
+
+            var quiz = await _context.Quizzes
+                .Include(q => q.Science)
+                .FirstOrDefaultAsync(q => q.QuizzId == game.QuizId);
+
+            if (quiz == null) return;
+
+            foreach (var player in game.Players)
+            {
+                var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == player.Name);
+
+                if (user == null)
+                    continue;
+
+                var totalQuestions = game.Questions.Count;
+                var correctAnswers = player.Score;
+
+                var quizStat = new QuizStatistics
+                {
+                    UserId = user.UserId,
+                    QuizzId = game.QuizId,
+                    TotalQuestions = totalQuestions,
+                    CorrectAnswers = correctAnswers,
+                    DateCompleted = DateTime.UtcNow
+                };
+
+                _context.QuizStatistics.Add(quizStat);
+
+                if (quiz.ScienceId.HasValue)
+                {
+                    var scienceId = quiz.ScienceId.Value;
+                    var scienceStat = await _context.ScienceStatistics
+                        .FirstOrDefaultAsync(s => s.UserId == user.UserId && s.ScienceId == scienceId);
+
+                    if (scienceStat == null)
+                    {
+                        scienceStat = new ScienceStatistics
+                        {
+                            UserId = user.UserId,
+                            ScienceId = scienceId,
+                            TotalQuizzesTaken = 1,
+                            TotalQuestionsAnswered = totalQuestions,
+                            TotalCorrectAnswers = correctAnswers
+                        };
+                        _context.ScienceStatistics.Add(scienceStat);
+                    }
+                    else
+                    {
+                        scienceStat.TotalQuizzesTaken++;
+                        scienceStat.TotalQuestionsAnswered += totalQuestions;
+                        scienceStat.TotalCorrectAnswers += correctAnswers;
+                        _context.ScienceStatistics.Update(scienceStat);
+                    }
+                }
+            }
+
+            await _context.SaveChangesAsync();
+        }
+
+        private async Task<int> GetUserIdByUsernameAsync(string username)
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == username);
+            if (user == null)
+            {
+                user = new UserModel
+                {
+                    Username = username,
+                    Email = $"{username}@guest.local",
+                    Password = "guest",
+                    IsAdmin = false
+                };
+                _context.Users.Add(user);
+                await _context.SaveChangesAsync();
+            }
+
+            return user.UserId;
         }
     }
 }
