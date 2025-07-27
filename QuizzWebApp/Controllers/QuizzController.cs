@@ -480,7 +480,7 @@ namespace QuizzWebApp.Controllers
                 return BadRequest("ilość pytań musi być większa od 0");
 
             if (dto.CorrectAnswers > dto.TotalQuestions)
-                return BadRequest("Niepoprawna ilośśc poprawnych pytań");
+                return BadRequest("Niepoprawna ilośśc poprawnych opowwiedzi");
 
             var user = await _context.Users
                 .FirstOrDefaultAsync(u => u.Username == dto.Username);
