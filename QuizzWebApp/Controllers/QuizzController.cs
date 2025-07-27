@@ -469,5 +469,82 @@ namespace QuizzWebApp.Controllers
             await _context.SaveChangesAsync();
             return NoContent();
         }
+
+        [HttpPost("submit-results")]
+        public async Task<IActionResult> SubmitGameResults([FromBody] SubmitGameResult dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Username))
+                return BadRequest("Brak użytkownika");
+
+            if (dto.TotalQuestions <= 0)
+                return BadRequest("ilość pytań musi być większa od 0");
+
+            if (dto.CorrectAnswers > dto.TotalQuestions)
+                return BadRequest("Niepoprawna ilośśc poprawnych pytań");
+
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u => u.Username == dto.Username);
+
+            if (user == null)
+                return NotFound($"Użytkownik '{dto.Username}' nie istnieje");
+
+            var quiz = await _context.Quizzes
+                .Include(q => q.Science)
+                .FirstOrDefaultAsync(q => q.QuizzId == dto.QuizId);
+
+            if (quiz == null)
+                return NotFound($"Quiz z {dto.QuizId} nie istnieje");
+
+            var quizStat = new QuizStatistics
+            {
+                UserId = user.UserId,
+                QuizzId = dto.QuizId,
+                TotalQuestions = dto.TotalQuestions,
+                CorrectAnswers = dto.CorrectAnswers,
+                DateCompleted = DateTime.UtcNow
+            };
+
+            _context.QuizStatistics.Add(quizStat);
+
+            if (quiz.ScienceId.HasValue)
+            {
+                var scienceStat = await _context.ScienceStatistics
+                    .FirstOrDefaultAsync(ss =>
+                        ss.UserId == user.UserId &&
+                        ss.ScienceId == quiz.ScienceId.Value);
+
+                if (scienceStat == null)
+                {
+                    scienceStat = new ScienceStatistics
+                    {
+                        UserId = user.UserId,
+                        ScienceId = quiz.ScienceId.Value,
+                        TotalQuizzesTaken = 1,
+                        TotalQuestionsAnswered = dto.TotalQuestions,
+                        TotalCorrectAnswers = dto.CorrectAnswers
+                    };
+                    _context.ScienceStatistics.Add(scienceStat);
+                }
+                else
+                {
+                    scienceStat.TotalQuizzesTaken += 1;
+                    scienceStat.TotalQuestionsAnswered += dto.TotalQuestions;
+                    scienceStat.TotalCorrectAnswers += dto.CorrectAnswers;
+                }
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                QuizStatisticsId = quizStat.QuizStatisticsId,
+                ScienceStatisticsId = quiz.ScienceId.HasValue
+                    ? (await _context.ScienceStatistics
+                        .FirstOrDefaultAsync(ss =>
+                            ss.UserId == user.UserId &&
+                            ss.ScienceId == quiz.ScienceId.Value))?.ScienceStatisticsId
+                    : null
+            });
+        }
     }
 }
