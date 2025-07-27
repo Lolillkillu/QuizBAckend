@@ -60,15 +60,52 @@ namespace QuizzWebApp.Controllers
         }
 
         [HttpPut("{id}")]
-        public IActionResult UpdateQuizz(int id, QuizzModel quizz)
+        public async Task<IActionResult> UpdateQuizz(int id, [FromBody] QuizzModel quizz)
         {
             if (id != quizz.QuizzId)
             {
-                return BadRequest();
+                return BadRequest("ID się nie zgadza");
             }
 
-            _context.Entry(quizz).State = EntityState.Modified;
-            _context.SaveChanges();
+            var existingQuiz = await _context.Quizzes.FindAsync(id);
+            if (existingQuiz == null)
+            {
+                return NotFound("Quiz nie został znaleziony");
+            }
+
+            existingQuiz.Title = quizz.Title;
+            existingQuiz.Description = quizz.Description;
+            existingQuiz.Author = quizz.Author;
+
+            if (quizz.ScienceId.HasValue)
+            {
+                var scienceExists = await _context.Sciences.AnyAsync(s => s.ScienceId == quizz.ScienceId.Value);
+                if (!scienceExists)
+                {
+                    return BadRequest("Podana dziedzina nauki nie istnieje");
+                }
+                existingQuiz.ScienceId = quizz.ScienceId;
+            }
+            else
+            {
+                existingQuiz.ScienceId = null;
+            }
+
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (!_context.Quizzes.Any(e => e.QuizzId == id))
+                {
+                    return NotFound();
+                }
+                else
+                {
+                    throw;
+                }
+            }
 
             return NoContent();
         }
@@ -406,6 +443,31 @@ namespace QuizzWebApp.Controllers
                 .ToListAsync();
 
             return Ok(results);
+        }
+
+        [HttpPost("{quizId}/AssignScience/{scienceId}")]
+        public async Task<IActionResult> AssignScienceToQuiz(int quizId, int scienceId)
+        {
+            var quiz = await _context.Quizzes.FindAsync(quizId);
+            if (quiz == null) return NotFound("Quiz nie istnieje");
+
+            var science = await _context.Sciences.FindAsync(scienceId);
+            if (science == null) return NotFound("Dziedzina nie istnieje");
+
+            quiz.ScienceId = scienceId;
+            await _context.SaveChangesAsync();
+            return NoContent();
+        }
+
+        [HttpPost("{quizId}/RemoveScience")]
+        public async Task<IActionResult> RemoveScienceFromQuiz(int quizId)
+        {
+            var quiz = await _context.Quizzes.FindAsync(quizId);
+            if (quiz == null) return NotFound("Quiz nie istnieje");
+
+            quiz.ScienceId = null;
+            await _context.SaveChangesAsync();
+            return NoContent();
         }
     }
 }
