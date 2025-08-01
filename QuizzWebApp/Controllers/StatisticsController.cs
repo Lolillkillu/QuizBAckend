@@ -52,5 +52,39 @@ namespace QuizzWebApp.Controllers
                 s.OverallAccuracy
             }));
         }
+
+        [HttpGet("user/{userId}")]
+        public async Task<IActionResult> GetUserStatistics(int userId)
+        {
+            var quizStats = await _context.QuizStatistics
+                .Where(q => q.UserId == userId)
+                .Include(q => q.Quiz)
+                .OrderByDescending(q => q.DateCompleted)
+                .ToListAsync();
+
+            var scienceStats = await _context.ScienceStatistics
+                .Where(s => s.UserId == userId)
+                .Include(s => s.Science)
+                .ToListAsync();
+
+            return Ok(new
+            {
+                QuizHistory = quizStats.Select(q => new
+                {
+                    QuizId = q.QuizzId,
+                    QuizTitle = q.Quiz.Title,
+                    q.TotalQuestions,
+                    q.CorrectAnswers,
+                    q.ScorePercentage,
+                    q.DateCompleted
+                }),
+                ScienceSummary = scienceStats.Select(s => new
+                {
+                    ScienceName = s.Science.ScienceName,
+                    s.TotalQuizzesTaken,
+                    s.OverallAccuracy
+                })
+            });
+        }
     }
 }

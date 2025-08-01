@@ -90,10 +90,11 @@ namespace QuizzWebApp.Controllers
             var token = tokenHandler.CreateToken(tokenDescriptor);
             var tokenString = tokenHandler.WriteToken(token);
 
-            return Ok(new LoginResponseModel
+            return Ok(new
             {
                 Token = tokenString,
-                Expiration = tokenDescriptor.Expires.Value
+                Expiration = tokenDescriptor.Expires.Value,
+                UserId = user.UserId
             });
         }
     }
