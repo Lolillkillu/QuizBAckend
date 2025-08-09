@@ -1,22 +1,33 @@
 ﻿using QuizzWebApp.Models;
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
+
+[assembly: InternalsVisibleTo("QuizzWebApp.Tests")]
 
 namespace QuizzWebApp.Services
 {
     public class GameManager
     {
-        private static readonly Lazy<GameManager> _instance = new Lazy<GameManager>(() => new GameManager());
+        internal static bool DisableCleanupTimer { get; set; }
+
+        private static readonly Lazy<GameManager> _instance =
+            new Lazy<GameManager>(() => new GameManager());
+
         public static GameManager Instance => _instance.Value;
 
-        private readonly ConcurrentDictionary<string, GameSession> _games = new ConcurrentDictionary<string, GameSession>();
+        private readonly ConcurrentDictionary<string, GameSession> _games =
+            new ConcurrentDictionary<string, GameSession>();
+
         private readonly TimeSpan _gameTimeout = TimeSpan.FromMinutes(30);
 
         private GameManager()
         {
-            var timer = new Timer(_ => CleanupOldGames(), null, 0, 300000);
+            if (!DisableCleanupTimer)
+            {
+                _ = new Timer(_ => CleanupOldGames(), null, 0, 300_000);
+            }
         }
 
         public GameSession CreateGame(int quizId)
