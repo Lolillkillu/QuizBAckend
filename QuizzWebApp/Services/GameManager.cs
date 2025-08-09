@@ -3,6 +3,8 @@ using System;
 using System.Collections.Concurrent;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Reflection;
+using System.Threading;
 
 [assembly: InternalsVisibleTo("QuizzWebApp.Tests")]
 
@@ -84,6 +86,17 @@ namespace QuizzWebApp.Services
 
             foreach (var game in oldGames)
                 _games.TryRemove(game.Key, out _);
+        }
+
+        public static void ResetForTests()
+        {
+            var instance = Instance;
+            var gamesField = typeof(GameManager).GetField("_games", BindingFlags.NonPublic | BindingFlags.Instance);
+            if (gamesField != null)
+            {
+                var games = gamesField.GetValue(instance) as System.Collections.Concurrent.ConcurrentDictionary<string, GameSession>;
+                games?.Clear();
+            }
         }
     }
 }
